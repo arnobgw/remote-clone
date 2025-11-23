@@ -109,6 +109,23 @@ function App() {
     });
   };
 
+  // Helper to create a dummy stream (black screen)
+  // This is needed because PeerJS requires a stream to initiate a call,
+  // but we (the client) don't want to share our screen.
+  const createDummyStream = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 480;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    const stream = canvas.captureStream(30); // 30 FPS
+    // Add a dummy audio track if needed, but for now just video
+    return stream;
+  };
+
   const connectToPeer = async (targetId: string) => {
     setConnectionStatus("Connecting...");
 
@@ -118,20 +135,22 @@ function App() {
       setupDataConnection(conn);
     }
 
-    navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
-      .then((stream) => {
-        const call = peerRef.current.call(targetId, stream);
-        call.on('stream', (remoteStream: any) => {
-          setRemoteStream(remoteStream);
-        });
-        callRef.current = call;
-        setIsConnected(true);
-        setConnectionStatus('Connected');
-      })
-      .catch((err) => {
-        console.error('Failed to get local stream', err);
-        setConnectionStatus('Failed to get screen permission');
+    // Use a dummy stream instead of asking for screen permission
+    try {
+      const stream = createDummyStream();
+      const call = peerRef.current.call(targetId, stream);
+      
+      call.on('stream', (remoteStream: any) => {
+        setRemoteStream(remoteStream);
       });
+      
+      callRef.current = call;
+      setIsConnected(true);
+      setConnectionStatus('Connected');
+    } catch (err) {
+      console.error('Failed to create dummy stream', err);
+      setConnectionStatus('Failed to initialize connection');
+    }
   };
 
   const disconnect = () => {
