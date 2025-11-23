@@ -13,6 +13,7 @@ function App() {
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<string>("Initializing...");
+  const [incomingCall, setIncomingCall] = useState<any>(null);
 
   const peerRef = useRef<any>(null);
   const callRef = useRef<any>(null);
@@ -30,21 +31,10 @@ function App() {
       setConnectionStatus("Ready to connect");
     });
 
-    peer.on("call", async (call: any) => {
-      navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
-        .then((stream) => {
-          call.answer(stream);
-          call.on('stream', (remoteStream: any) => {
-            setRemoteStream(remoteStream);
-          });
-          setIsConnected(true);
-          setConnectionStatus('Connected');
-          callRef.current = call;
-        })
-        .catch((err) => {
-          console.error('Failed to get local stream', err);
-          setConnectionStatus('Failed to get screen permission');
-        });
+    peer.on("call", (call: any) => {
+      console.log("Receiving call from:", call.peer);
+      setIncomingCall(call);
+      setConnectionStatus("Incoming call...");
     });
 
     peer.on("connection", (conn: any) => {
@@ -139,11 +129,11 @@ function App() {
     try {
       const stream = createDummyStream();
       const call = peerRef.current.call(targetId, stream);
-      
+
       call.on('stream', (remoteStream: any) => {
         setRemoteStream(remoteStream);
       });
-      
+
       callRef.current = call;
       setIsConnected(true);
       setConnectionStatus('Connected');
@@ -153,12 +143,45 @@ function App() {
     }
   };
 
+  const acceptCall = () => {
+    if (!incomingCall) return;
+
+    setConnectionStatus("Accepting call...");
+
+    navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+      .then((stream) => {
+        incomingCall.answer(stream);
+        incomingCall.on('stream', (remoteStream: any) => {
+          setRemoteStream(remoteStream);
+        });
+        setIsConnected(true);
+        setConnectionStatus('Connected');
+        callRef.current = incomingCall;
+        setIncomingCall(null);
+      })
+      .catch((err) => {
+        console.error('Failed to get local stream', err);
+        setConnectionStatus('Failed to get screen permission');
+        setIncomingCall(null);
+      });
+  };
+
+  const rejectCall = () => {
+    if (incomingCall) {
+      incomingCall.close();
+      setIncomingCall(null);
+      setConnectionStatus("Call rejected");
+      setTimeout(() => setConnectionStatus("Ready to connect"), 2000);
+    }
+  };
+
   const disconnect = () => {
     if (callRef.current) callRef.current.close();
     if (dataConnRef.current) dataConnRef.current.close();
 
     setIsConnected(false);
     setRemoteStream(null);
+    setIncomingCall(null);
     setConnectionStatus("Ready to connect");
     window.location.reload(); // Simple reset
   };
@@ -218,6 +241,31 @@ function App() {
 
   return (
     <div>
+      {incomingCall && !isConnected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-gray-900 border border-white/10 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center">
+            <h3 className="text-2xl font-bold text-white mb-4">Incoming Connection</h3>
+            <p className="text-gray-400 mb-8">
+              <span className="font-mono text-blue-400">{incomingCall.peer}</span> wants to view your screen.
+            </p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={rejectCall}
+                className="px-6 py-3 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 font-semibold transition-colors"
+              >
+                Reject
+              </button>
+              <button
+                onClick={acceptCall}
+                className="px-6 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 font-semibold shadow-lg shadow-blue-600/20 transition-colors"
+              >
+                Accept & Share
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!isConnected ? (
         <ConnectionScreen
           myId={myId}
