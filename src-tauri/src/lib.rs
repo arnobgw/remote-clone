@@ -14,27 +14,48 @@ fn greet(name: &str) -> String {
 }
 #[tauri::command]
 fn simulate_input(event: InputEvent) {
-    // Enigo::new() returns a Result in recent versions, so we unwrap it.
-    // In a real app, we might want to handle the error more gracefully.
-    let mut enigo = Enigo::new(&enigo::Settings::default()).unwrap();
+    println!("Received input event"); // Trace entry
 
-    match event {
-        InputEvent::MouseMove { x, y } => {
-            // Enigo 0.3+ might use different coordinate system or method names
-            // Assuming mouse_move_to is correct for absolute positioning
-            let _ = enigo.move_mouse(x, y, enigo::Coordinate::Abs);
-        }
-        InputEvent::MouseClick { button } => {
-            match button.as_str() {
-                "left" => { let _ = enigo.button(enigo::Button::Left, enigo::Direction::Click); },
-                "right" => { let _ = enigo.button(enigo::Button::Right, enigo::Direction::Click); },
-                "middle" => { let _ = enigo.button(enigo::Button::Middle, enigo::Direction::Click); },
-                _ => {}
+    // Enigo::new() returns a Result in recent versions
+    let enigo_result = Enigo::new(&enigo::Settings::default());
+    
+    match enigo_result {
+        Ok(mut enigo) => {
+            println!("Enigo initialized successfully");
+            match event {
+                InputEvent::MouseMove { x, y } => {
+                    println!("Moving mouse to: {}, {}", x, y);
+                    if let Err(e) = enigo.move_mouse(x, y, enigo::Coordinate::Abs) {
+                        println!("Error moving mouse: {:?}", e);
+                    }
+                }
+                InputEvent::MouseClick { button } => {
+                    println!("Clicking button: {}", button);
+                    let btn = match button.as_str() {
+                        "left" => Some(enigo::Button::Left),
+                        "right" => Some(enigo::Button::Right),
+                        "middle" => Some(enigo::Button::Middle),
+                        _ => None,
+                    };
+                    
+                    if let Some(b) = btn {
+                        if let Err(e) = enigo.button(b, enigo::Direction::Click) {
+                             println!("Error clicking button: {:?}", e);
+                        }
+                    } else {
+                        println!("Unknown button: {}", button);
+                    }
+                }
+                InputEvent::KeyPress { key } => {
+                    println!("Typing key: {}", key);
+                    if let Err(e) = enigo.text(&key) {
+                        println!("Error typing text: {:?}", e);
+                    }
+                }
             }
         }
-        InputEvent::KeyPress { key } => {
-            // key_sequence types a string
-            let _ = enigo.text(&key);
+        Err(e) => {
+            println!("Failed to initialize Enigo: {:?}", e);
         }
     }
 }

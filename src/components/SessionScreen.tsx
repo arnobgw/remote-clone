@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
-import { PhoneOff, Mic, MonitorOff, FileUp, Maximize2, MousePointer2, GripHorizontal } from 'lucide-react';
+import { PhoneOff, Mic, MonitorOff, FileUp, Maximize2, MousePointer2, GripHorizontal, ExternalLink } from 'lucide-react';
+import { NewWindow } from './NewWindow';
 
 interface SessionScreenProps {
     remoteStream: MediaStream | null;
@@ -15,6 +16,7 @@ export function SessionScreen({ remoteStream, onDisconnect, onSendFile, onSendIn
     const [showControls, setShowControls] = useState(true);
     const [isHovering, setIsHovering] = useState(false);
     const [remoteControlEnabled, setRemoteControlEnabled] = useState(false);
+    const [isPoppedOut, setIsPoppedOut] = useState(false);
 
     useEffect(() => {
         if (videoRef.current && remoteStream) {
@@ -111,14 +113,38 @@ export function SessionScreen({ remoteStream, onDisconnect, onSendFile, onSendIn
             onMouseDown={handleMouseDown}
         >
             {/* Main Video Area */}
-            <div className="flex-1 flex items-center justify-center relative">
+            <div className="flex-1 flex items-center justify-center relative w-full h-full overflow-hidden">
                 {remoteStream ? (
-                    <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        className={`max-w-full max-h-full object-contain shadow-2xl ${remoteControlEnabled ? 'cursor-none' : ''}`}
-                    />
+                    isPoppedOut ? (
+                        <NewWindow onClose={() => setIsPoppedOut(false)}>
+                            <div
+                                className="w-full h-full flex items-center justify-center bg-black"
+                                onMouseMove={(e) => {
+                                    // Forward mouse events from popup to handler if needed, 
+                                    // but for now we rely on the video ref being attached to the DOM in the popup
+                                    // Note: React events bubble through portals, so handleMouseMove should still work!
+                                    handleMouseMove(e);
+                                }}
+                                onMouseDown={handleMouseDown}
+                                onKeyDown={(e: any) => handleKeyDown(e)}
+                                tabIndex={0} // Make focusable for key events
+                            >
+                                <video
+                                    ref={videoRef}
+                                    autoPlay
+                                    playsInline
+                                    className={`max-w-[100vw] max-h-[100vh] w-full h-full object-contain ${remoteControlEnabled ? 'cursor-none' : ''}`}
+                                />
+                            </div>
+                        </NewWindow>
+                    ) : (
+                        <video
+                            ref={videoRef}
+                            autoPlay
+                            playsInline
+                            className={`max-w-full max-h-full w-full h-full object-contain shadow-2xl ${remoteControlEnabled ? 'cursor-none' : ''}`}
+                        />
+                    )
                 ) : (
                     <div className="text-center space-y-6 animate-fade-in">
                         <div className="relative inline-block">
@@ -187,6 +213,16 @@ export function SessionScreen({ remoteStream, onDisconnect, onSendFile, onSendIn
                             <FileUp className="h-5 w-5" />
                             <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                                 Send File
+                            </span>
+                        </button>
+
+                        <button
+                            onClick={() => setIsPoppedOut(!isPoppedOut)}
+                            className={`p-3 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white group relative ${isPoppedOut ? 'text-blue-400' : ''}`}
+                        >
+                            <ExternalLink className="h-5 w-5" />
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                {isPoppedOut ? 'Restore' : 'Pop Out'}
                             </span>
                         </button>
 
