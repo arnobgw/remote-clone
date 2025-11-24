@@ -164,9 +164,12 @@ async fn start_screen_capture(app: tauri::AppHandle, monitor_id: u32) -> Result<
             // Capture frame
             match monitor.capture_image() {
                 Ok(image) => {
+                    // Convert RGBA to RGB (JPEG doesn't support alpha channel)
+                    let rgb_image = image::DynamicImage::ImageRgba8(image).to_rgb8();
+                    
                     // Convert to JPEG and base64
                     let mut buffer = Vec::new();
-                    if let Err(e) = image.write_to(&mut std::io::Cursor::new(&mut buffer), ImageFormat::Jpeg) {
+                    if let Err(e) = rgb_image.write_to(&mut std::io::Cursor::new(&mut buffer), ImageFormat::Jpeg) {
                         eprintln!("Failed to encode image: {}", e);
                         continue;
                     }
