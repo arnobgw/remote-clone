@@ -391,24 +391,29 @@ function App() {
   return (
     <div>
       {incomingCall && !isConnected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-gray-900 border border-white/10 p-10 rounded-2xl shadow-2xl max-w-md w-full mx-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
+          <div className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 p-10 rounded-3xl shadow-2xl max-w-md w-full mx-4">
             <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl mb-4 shadow-lg shadow-indigo-500/30">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </div>
               <h3 className="text-2xl font-bold text-white mb-3">Incoming Connection</h3>
-              <p className="text-gray-400 text-[15px] leading-relaxed">
-                <span className="font-mono text-blue-400 font-semibold">{incomingCall.peer}</span> wants to view your screen.
+              <p className="text-slate-300 text-[15px] leading-relaxed">
+                <span className="font-mono text-indigo-400 font-semibold bg-indigo-500/10 px-2 py-1 rounded">{incomingCall.peer}</span> wants to view your screen.
               </p>
             </div>
             <div className="flex gap-3">
               <button
                 onClick={rejectCall}
-                className="flex-1 px-6 py-3.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 font-semibold transition-all border border-red-500/20 hover:border-red-500/30"
+                className="flex-1 px-6 py-3.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 font-semibold transition-all border border-red-500/30 hover:border-red-500/50"
               >
                 Reject
               </button>
               <button
                 onClick={acceptCall}
-                className="flex-1 px-6 py-3.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 font-semibold shadow-lg shadow-blue-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                className="flex-1 px-6 py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 font-semibold shadow-lg shadow-indigo-500/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
               >
                 Accept & Share
               </button>
@@ -418,11 +423,14 @@ function App() {
       )}
 
       {showMonitorSelect && !isConnected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-gray-900 border border-white/10 p-10 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
+          <div className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 p-10 rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="mb-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl mb-4 shadow-lg shadow-indigo-500/30">
+                <Monitor className="w-8 h-8 text-white" />
+              </div>
               <h3 className="text-2xl font-bold text-white mb-3">Select Monitor to Share</h3>
-              <p className="text-gray-400 text-[15px] leading-relaxed">
+              <p className="text-slate-300 text-[15px] leading-relaxed">
                 Choose which monitor you want to share with the remote user.
               </p>
             </div>
@@ -431,22 +439,22 @@ function App() {
                 <button
                   key={monitor.id}
                   onClick={() => startNativeCapture(monitor.id)}
-                  className="p-5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-blue-500/50 rounded-xl transition-all text-left group"
+                  className="p-6 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/30 hover:border-indigo-500/50 rounded-xl transition-all text-left group backdrop-blur-sm"
                 >
                   <div className="flex items-center gap-4 mb-3">
-                    <div className="p-3 bg-blue-500/10 rounded-xl group-hover:bg-blue-500/20 transition-colors border border-blue-500/20">
-                      <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="p-3 bg-indigo-500/20 rounded-xl group-hover:bg-indigo-500/30 transition-colors border border-indigo-500/30">
+                      <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                       </svg>
                     </div>
                     <div className="flex-1">
                       <div className="font-semibold text-white mb-1">{monitor.name}</div>
                       {monitor.is_primary && (
-                        <span className="text-xs text-blue-400 font-medium bg-blue-500/10 px-2 py-0.5 rounded">Primary</span>
+                        <span className="text-xs text-indigo-400 font-medium bg-indigo-500/20 px-2 py-1 rounded border border-indigo-500/30">Primary</span>
                       )}
                     </div>
                   </div>
-                  <div className="text-sm text-gray-400 font-mono">
+                  <div className="text-sm text-slate-400 font-mono">
                     {monitor.width} × {monitor.height}
                   </div>
                 </button>
@@ -457,7 +465,7 @@ function App() {
                 setShowMonitorSelect(false);
                 setIncomingCall(null);
               }}
-              className="w-full px-6 py-3.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 font-semibold transition-all border border-red-500/20 hover:border-red-500/30"
+              className="w-full px-6 py-3.5 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-white font-semibold transition-all border border-slate-700/30"
             >
               Cancel
             </button>
