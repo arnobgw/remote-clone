@@ -52,23 +52,27 @@ function App() {
   }, []);
 
   const setupDataConnection = (conn: any) => {
+    console.log('[DATA] Setting up data connection');
     dataConnRef.current = conn;
 
     conn.on("open", () => {
-      console.log("Data connection open");
+      console.log('[DATA] Data connection open ✓');
     });
 
     conn.on("data", async (data: any) => {
+      console.log('[DATA] Received data:', data);
       // Handle different data types
       // PeerJS might send data as ArrayBuffer or string/object depending on serialization
       // For simplicity, let's assume objects are sent as JSON if not binary
 
       if (data && data.type === 'input-event') {
+        console.log('[INPUT] Received input event, invoking simulate_input');
         // Handle remote input event
         try {
           await invoke('simulate_input', { event: data.payload });
+          console.log('[INPUT] simulate_input completed');
         } catch (e) {
-          console.error('Failed to simulate input:', e);
+          console.error('[INPUT] Failed to simulate input:', e);
         }
         return;
       }
@@ -95,7 +99,7 @@ function App() {
     });
 
     conn.on("close", () => {
-      console.log("Data connection closed");
+      console.log('[DATA] Data connection closed');
     });
   };
 
@@ -117,12 +121,16 @@ function App() {
   };
 
   const connectToPeer = async (targetId: string) => {
+    console.log('[CONNECT] Connecting to peer:', targetId);
     setConnectionStatus("Connecting...");
 
     // Connect data channel
     if (peerRef.current) {
+      console.log('[CONNECT] Initiating data connection');
       const conn = peerRef.current.connect(targetId);
       setupDataConnection(conn);
+    } else {
+      console.error('[CONNECT] peerRef.current is null!');
     }
 
     // Use a dummy stream instead of asking for screen permission
@@ -131,6 +139,7 @@ function App() {
       const call = peerRef.current.call(targetId, stream);
 
       call.on('stream', (remoteStream: any) => {
+        console.log('[CONNECT] Received remote stream');
         setRemoteStream(remoteStream);
       });
 
@@ -232,10 +241,13 @@ function App() {
 
   const sendInputEvent = (event: any) => {
     if (dataConnRef.current) {
+      console.log('[INPUT] Sending input event:', event);
       dataConnRef.current.send({
         type: 'input-event',
         payload: event
       });
+    } else {
+      console.warn('[INPUT] Cannot send input - dataConnRef.current is null');
     }
   };
 
