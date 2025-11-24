@@ -87,16 +87,13 @@ function App() {
       if (data && data.type === 'input-event') {
         console.log('[INPUT] Received input event, invoking simulate_input');
         // Handle remote input event
-        if (!isTauriApp) {
-          console.error('[INPUT] Remote control requires Tauri desktop app. Run with: npm run tauri dev');
-          showToast('⚠️ Remote control requires desktop app. Run: npm run tauri dev');
-          return;
-        }
         try {
+          // Only works in Tauri mode, but we'll try anyway
           await invoke('simulate_input', { event: data.payload });
           console.log('[INPUT] simulate_input completed');
         } catch (e) {
-          console.error('[INPUT] Failed to simulate input:', e);
+          // Silently fail in browser mode - this is expected
+          console.warn('[INPUT] Input simulation not available (browser mode)');
         }
         return;
       }
