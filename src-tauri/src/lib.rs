@@ -1,4 +1,4 @@
-use enigo::{Enigo, Key, Keyboard, Mouse, Settings, Direction, Button, Coordinate};
+use enigo::{Enigo, Keyboard, Mouse};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -6,6 +6,7 @@ use std::time::Duration;
 use xcap::Monitor;
 use image::ImageFormat;
 use base64::{Engine as _, engine::general_purpose};
+use tauri::Emitter;
 
 #[derive(Deserialize)]
 #[serde(tag = "type", content = "payload")]
