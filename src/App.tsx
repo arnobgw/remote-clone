@@ -234,13 +234,30 @@ function App() {
       });
 
       let frameCount = 0;
+      let lastFrameTime = 0;
+      const targetFPS = 30;
+      const frameInterval = 1000 / targetFPS;
+      let pendingFrame: string | null = null;
+      
       const unlisten = await listen('screen-frame', (event: any) => {
+        const now = Date.now();
+        // Throttle to target FPS to avoid overwhelming the renderer
+        if (now - lastFrameTime < frameInterval) {
+          pendingFrame = event.payload; // Store latest frame
+          return;
+        }
+        lastFrameTime = now;
+        
+        // Use pending frame if available (latest frame)
+        const base64Data = pendingFrame || event.payload;
+        pendingFrame = null;
+        
         frameCount++;
-        if (frameCount % 30 === 0) {
+        if (frameCount % 60 === 0) {
           console.log('[CAPTURE] Received', frameCount, 'frames');
         }
 
-        const base64Data = event.payload;
+        // Create new image for each frame to ensure proper loading
         const img = new Image();
         img.onload = () => {
           // Update canvas size if needed
@@ -249,7 +266,10 @@ function App() {
             canvas.height = img.height;
             console.log('[CAPTURE] Canvas resized to', img.width, 'x', img.height);
           }
-          ctx.drawImage(img, 0, 0);
+          // Use requestAnimationFrame for smoother rendering
+          requestAnimationFrame(() => {
+            ctx.drawImage(img, 0, 0);
+          });
         };
         img.onerror = (e) => {
           console.error('[CAPTURE] Failed to load image:', e);
@@ -257,8 +277,8 @@ function App() {
         img.src = `data:image/jpeg;base64,${base64Data}`;
       });
 
-      // Create stream from canvas at 15 FPS to match backend
-      const stream = canvas.captureStream(15);
+      // Create stream from canvas at 30 FPS for smooth playback
+      const stream = canvas.captureStream(30);
       streamRef.current = stream;
 
       // Answer call with stream
@@ -372,21 +392,23 @@ function App() {
     <div>
       {incomingCall && !isConnected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-gray-900 border border-white/10 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center">
-            <h3 className="text-2xl font-bold text-white mb-4">Incoming Connection</h3>
-            <p className="text-gray-400 mb-8">
-              <span className="font-mono text-blue-400">{incomingCall.peer}</span> wants to view your screen.
-            </p>
-            <div className="flex gap-4 justify-center">
+          <div className="bg-gray-900 border border-white/10 p-10 rounded-2xl shadow-2xl max-w-md w-full mx-4">
+            <div className="text-center mb-8">
+              <h3 className="text-2xl font-bold text-white mb-3">Incoming Connection</h3>
+              <p className="text-gray-400 text-[15px] leading-relaxed">
+                <span className="font-mono text-blue-400 font-semibold">{incomingCall.peer}</span> wants to view your screen.
+              </p>
+            </div>
+            <div className="flex gap-3">
               <button
                 onClick={rejectCall}
-                className="px-6 py-3 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 font-semibold transition-colors"
+                className="flex-1 px-6 py-3.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 font-semibold transition-all border border-red-500/20 hover:border-red-500/30"
               >
                 Reject
               </button>
               <button
                 onClick={acceptCall}
-                className="px-6 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 font-semibold shadow-lg shadow-blue-600/20 transition-colors"
+                className="flex-1 px-6 py-3.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 font-semibold shadow-lg shadow-blue-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
               >
                 Accept & Share
               </button>
@@ -396,33 +418,35 @@ function App() {
       )}
 
       {showMonitorSelect && !isConnected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-gray-900 border border-white/10 p-8 rounded-2xl shadow-2xl max-w-2xl w-full">
-            <h3 className="text-2xl font-bold text-white mb-4">Select Monitor to Share</h3>
-            <p className="text-gray-400 mb-6">
-              Choose which monitor you want to share with the remote user.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-gray-900 border border-white/10 p-10 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="mb-8">
+              <h3 className="text-2xl font-bold text-white mb-3">Select Monitor to Share</h3>
+              <p className="text-gray-400 text-[15px] leading-relaxed">
+                Choose which monitor you want to share with the remote user.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
               {monitors.map((monitor: any) => (
                 <button
                   key={monitor.id}
                   onClick={() => startNativeCapture(monitor.id)}
-                  className="p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-blue-500 rounded-xl transition-all text-left group"
+                  className="p-5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-blue-500/50 rounded-xl transition-all text-left group"
                 >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 bg-blue-500/10 rounded-lg group-hover:bg-blue-500/20 transition-colors">
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className="p-3 bg-blue-500/10 rounded-xl group-hover:bg-blue-500/20 transition-colors border border-blue-500/20">
                       <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                       </svg>
                     </div>
-                    <div>
-                      <div className="font-semibold text-white">{monitor.name}</div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-white mb-1">{monitor.name}</div>
                       {monitor.is_primary && (
-                        <span className="text-xs text-blue-400">Primary</span>
+                        <span className="text-xs text-blue-400 font-medium bg-blue-500/10 px-2 py-0.5 rounded">Primary</span>
                       )}
                     </div>
                   </div>
-                  <div className="text-sm text-gray-400">
+                  <div className="text-sm text-gray-400 font-mono">
                     {monitor.width} × {monitor.height}
                   </div>
                 </button>
@@ -433,7 +457,7 @@ function App() {
                 setShowMonitorSelect(false);
                 setIncomingCall(null);
               }}
-              className="w-full px-6 py-3 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 font-semibold transition-colors"
+              className="w-full px-6 py-3.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 font-semibold transition-all border border-red-500/20 hover:border-red-500/30"
             >
               Cancel
             </button>

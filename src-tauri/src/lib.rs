@@ -12,7 +12,7 @@ use tauri::Emitter;
 #[serde(tag = "type", content = "payload")]
 enum InputEvent {
     MouseMove { x: i32, y: i32 },
-    MouseClick { button: String }, // "left", "right", "middle"
+    MouseClick { button: String, x: Option<i32>, y: Option<i32> }, // "left", "right", "middle"
     KeyPress { key: String },
 }
 
@@ -59,7 +59,17 @@ fn simulate_input(event: InputEvent) {
                         println!("Error moving mouse: {:?}", e);
                     }
                 }
-                InputEvent::MouseClick { button } => {
+                InputEvent::MouseClick { button, x, y } => {
+                    // Move to coordinates first if provided
+                    if let (Some(x_coord), Some(y_coord)) = (x, y) {
+                        println!("Moving to click position: {}, {}", x_coord, y_coord);
+                        if let Err(e) = enigo.move_mouse(x_coord, y_coord, enigo::Coordinate::Abs) {
+                            println!("Error moving mouse: {:?}", e);
+                        }
+                        // Small delay to ensure mouse is positioned before clicking
+                        thread::sleep(Duration::from_millis(10));
+                    }
+                    
                     println!("Clicking button: {}", button);
                     let btn = match button.as_str() {
                         "left" => Some(enigo::Button::Left),
@@ -155,8 +165,8 @@ async fn start_screen_capture(app: tauri::AppHandle, monitor_id: u32) -> Result<
             "height": monitor_height
         }));
         
-        // Target 15 FPS for better performance
-        let frame_duration = Duration::from_millis(66);
+        // Target 30 FPS for smooth experience
+        let frame_duration = Duration::from_millis(33);
         let mut frame_count = 0;
         
         loop {
@@ -177,17 +187,39 @@ async fn start_screen_capture(app: tauri::AppHandle, monitor_id: u32) -> Result<
                     // Convert RGBA to RGB (JPEG doesn't support alpha channel)
                     let rgb_image = image::DynamicImage::ImageRgba8(image).to_rgb8();
                     
-                    // Scale down to 720p for better performance
-                    let scaled = image::imageops::resize(
-                        &rgb_image,
-                        1280,
-                        720,
-                        image::imageops::FilterType::Nearest
-                    );
+                    // Calculate scaling to maintain aspect ratio while limiting max dimension
+                    // Max width/height of 1920 to balance quality and performance
+                    let max_dimension = 1920;
+                    let (width, height) = (rgb_image.width(), rgb_image.height());
+                    let (scaled_width, scaled_height) = if width > height {
+                        if width > max_dimension {
+                            (max_dimension, (height * max_dimension) / width)
+                        } else {
+                            (width, height)
+                        }
+                    } else {
+                        if height > max_dimension {
+                            ((width * max_dimension) / height, max_dimension)
+                        } else {
+                            (width, height)
+                        }
+                    };
                     
-                    // Convert to JPEG with lower quality for better performance
+                    // Use Lanczos3 filter for better quality when scaling
+                    let scaled = if scaled_width != width || scaled_height != height {
+                        image::imageops::resize(
+                            &rgb_image,
+                            scaled_width,
+                            scaled_height,
+                            image::imageops::FilterType::Lanczos3
+                        )
+                    } else {
+                        rgb_image
+                    };
+                    
+                    // Convert to JPEG with better quality (75) for clearer image
                     let mut buffer = Vec::new();
-                    let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buffer, 60);
+                    let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buffer, 75);
                     if let Err(e) = scaled.write_with_encoder(encoder) {
                         eprintln!("Failed to encode image: {}", e);
                         continue;
@@ -200,7 +232,7 @@ async fn start_screen_capture(app: tauri::AppHandle, monitor_id: u32) -> Result<
                         eprintln!("Failed to emit frame: {}", e);
                     } else {
                         frame_count += 1;
-                        if frame_count % 15 == 0 {
+                        if frame_count % 60 == 0 {
                             println!("Sent {} frames", frame_count);
                         }
                     }
