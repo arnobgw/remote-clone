@@ -23,6 +23,7 @@ function App() {
   // Canvas for native screen capture
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const monitorDimensionsRef = useRef<{ width: number, height: number } | null>(null);
 
   const peerRef = useRef<any>(null);
   const callRef = useRef<any>(null);
@@ -223,8 +224,15 @@ function App() {
       await invoke('start_screen_capture', { monitorId });
       console.log('[CAPTURE] Started screen capture for monitor', monitorId);
 
-      // Listen for frames
+      // Listen for monitor info and frames
       const { listen } = await import('@tauri-apps/api/event');
+
+      const monitorUnlisten = await listen('monitor-info', (event: any) => {
+        const info = event.payload;
+        monitorDimensionsRef.current = { width: info.width, height: info.height };
+        console.log('[CAPTURE] Monitor dimensions:', info.width, 'x', info.height);
+      });
+
       let frameCount = 0;
       const unlisten = await listen('screen-frame', (event: any) => {
         frameCount++;
@@ -249,8 +257,8 @@ function App() {
         img.src = `data:image/jpeg;base64,${base64Data}`;
       });
 
-      // Create stream from canvas
-      const stream = canvas.captureStream(30); // 30 FPS
+      // Create stream from canvas at 15 FPS to match backend
+      const stream = canvas.captureStream(15);
       streamRef.current = stream;
 
       // Answer call with stream

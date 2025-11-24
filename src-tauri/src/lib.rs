@@ -146,8 +146,17 @@ async fn start_screen_capture(app: tauri::AppHandle, monitor_id: u32) -> Result<
         
         println!("Capturing monitor: {} ({}x{})", monitor.name(), monitor.width(), monitor.height());
         
-        // Target 30 FPS
-        let frame_duration = Duration::from_millis(33);
+        let monitor_width = monitor.width();
+        let monitor_height = monitor.height();
+        
+        // Send monitor info to frontend
+        let _ = app.emit("monitor-info", serde_json::json!({
+            "width": monitor_width,
+            "height": monitor_height
+        }));
+        
+        // Target 15 FPS for better performance
+        let frame_duration = Duration::from_millis(66);
         let mut frame_count = 0;
         
         loop {
@@ -168,10 +177,18 @@ async fn start_screen_capture(app: tauri::AppHandle, monitor_id: u32) -> Result<
                     // Convert RGBA to RGB (JPEG doesn't support alpha channel)
                     let rgb_image = image::DynamicImage::ImageRgba8(image).to_rgb8();
                     
-                    // Convert to JPEG with quality setting for better performance
+                    // Scale down to 720p for better performance
+                    let scaled = image::imageops::resize(
+                        &rgb_image,
+                        1280,
+                        720,
+                        image::imageops::FilterType::Nearest
+                    );
+                    
+                    // Convert to JPEG with lower quality for better performance
                     let mut buffer = Vec::new();
-                    let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buffer, 75);
-                    if let Err(e) = rgb_image.write_with_encoder(encoder) {
+                    let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buffer, 60);
+                    if let Err(e) = scaled.write_with_encoder(encoder) {
                         eprintln!("Failed to encode image: {}", e);
                         continue;
                     }
@@ -183,7 +200,7 @@ async fn start_screen_capture(app: tauri::AppHandle, monitor_id: u32) -> Result<
                         eprintln!("Failed to emit frame: {}", e);
                     } else {
                         frame_count += 1;
-                        if frame_count % 30 == 0 {
+                        if frame_count % 15 == 0 {
                             println!("Sent {} frames", frame_count);
                         }
                     }
