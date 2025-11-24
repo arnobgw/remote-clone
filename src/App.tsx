@@ -14,9 +14,15 @@ function App() {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<string>("Initializing...");
   const [incomingCall, setIncomingCall] = useState<any>(null);
+  const [showMonitorSelect, setShowMonitorSelect] = useState(false);
+  const [monitors, setMonitors] = useState<any[]>([]);
 
   // Check if running in Tauri desktop app
   const isTauriApp = typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__;
+
+  // Canvas for native screen capture
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const peerRef = useRef<any>(null);
   const callRef = useRef<any>(null);
@@ -24,6 +30,16 @@ function App() {
 
   // File transfer state
   const incomingFileRef = useRef<{ meta: any; chunks: ArrayBuffer[] } | null>(null);
+
+  // Initialize canvas for screen capture
+  useEffect(() => {
+    if (isTauriApp) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1920; // Will be updated based on actual monitor
+      canvas.height = 1080;
+      canvasRef.current = canvas;
+    }
+  }, [isTauriApp]);
 
   useEffect(() => {
     const peer = new Peer();
@@ -160,27 +176,95 @@ function App() {
     }
   };
 
-  const acceptCall = () => {
+  const acceptCall = async () => {
     if (!incomingCall) return;
 
     setConnectionStatus("Accepting call...");
 
-    navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
-      .then((stream) => {
-        incomingCall.answer(stream);
-        incomingCall.on('stream', (remoteStream: any) => {
-          setRemoteStream(remoteStream);
+    // Use native capture if in Tauri, otherwise use browser API
+    if (isTauriApp) {
+      try {
+        // Get monitors
+        const monitorList = await invoke('get_monitors');
+        setMonitors(monitorList as any[]);
+        setShowMonitorSelect(true);
+      } catch (err) {
+        console.error('Failed to get monitors', err);
+        setConnectionStatus('Failed to get monitors');
+        setIncomingCall(null);
+      }
+    } else {
+      // Browser mode - use getDisplayMedia
+      navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+        .then((stream) => {
+          incomingCall.answer(stream);
+          incomingCall.on('stream', (remoteStream: any) => {
+            setRemoteStream(remoteStream);
+          });
+          setIsConnected(true);
+          setConnectionStatus('Connected');
+          callRef.current = incomingCall;
+          setIncomingCall(null);
+        })
+        .catch((err) => {
+          console.error('Failed to get local stream', err);
+          setConnectionStatus('Failed to get screen permission');
+          setIncomingCall(null);
         });
-        setIsConnected(true);
-        setConnectionStatus('Connected');
-        callRef.current = incomingCall;
-        setIncomingCall(null);
-      })
-      .catch((err) => {
-        console.error('Failed to get local stream', err);
-        setConnectionStatus('Failed to get screen permission');
-        setIncomingCall(null);
+    }
+  };
+
+  const startNativeCapture = async (monitorId: number) => {
+    if (!canvasRef.current || !incomingCall) return;
+
+    try {
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Failed to get canvas context');
+
+      // Start capture
+      await invoke('start_screen_capture', { monitorId });
+
+      // Listen for frames
+      const { listen } = await import('@tauri-apps/api/event');
+      const unlisten = await listen('screen-frame', (event: any) => {
+        const base64Data = event.payload;
+        const img = new Image();
+        img.onload = () => {
+          // Update canvas size if needed
+          if (canvas.width !== img.width || canvas.height !== img.height) {
+            canvas.width = img.width;
+            canvas.height = img.height;
+          }
+          ctx.drawImage(img, 0, 0);
+        };
+        img.src = `data:image/jpeg;base64,${base64Data}`;
       });
+
+      // Create stream from canvas
+      const stream = canvas.captureStream(30); // 30 FPS
+      streamRef.current = stream;
+
+      // Answer call with stream
+      incomingCall.answer(stream);
+      incomingCall.on('stream', (remoteStream: any) => {
+        setRemoteStream(remoteStream);
+      });
+
+      setIsConnected(true);
+      setConnectionStatus('Connected');
+      callRef.current = incomingCall;
+      setIncomingCall(null);
+      setShowMonitorSelect(false);
+
+      // Store unlisten for cleanup
+      (window as any).__screenCaptureUnlisten = unlisten;
+    } catch (err) {
+      console.error('Failed to start native capture', err);
+      setConnectionStatus('Failed to start screen capture');
+      setIncomingCall(null);
+      setShowMonitorSelect(false);
+    }
   };
 
   const rejectCall = () => {
@@ -196,9 +280,18 @@ function App() {
     if (callRef.current) callRef.current.close();
     if (dataConnRef.current) dataConnRef.current.close();
 
+    // Stop native capture if active
+    if (isTauriApp && streamRef.current) {
+      invoke('stop_screen_capture').catch(console.error);
+      if ((window as any).__screenCaptureUnlisten) {
+        (window as any).__screenCaptureUnlisten();
+      }
+    }
+
     setIsConnected(false);
     setRemoteStream(null);
     setIncomingCall(null);
+    setShowMonitorSelect(false);
     setConnectionStatus("Ready to connect");
     window.location.reload(); // Simple reset
   };
@@ -282,6 +375,52 @@ function App() {
                 Accept & Share
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showMonitorSelect && !isConnected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-gray-900 border border-white/10 p-8 rounded-2xl shadow-2xl max-w-2xl w-full">
+            <h3 className="text-2xl font-bold text-white mb-4">Select Monitor to Share</h3>
+            <p className="text-gray-400 mb-6">
+              Choose which monitor you want to share with the remote user.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              {monitors.map((monitor: any) => (
+                <button
+                  key={monitor.id}
+                  onClick={() => startNativeCapture(monitor.id)}
+                  className="p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-blue-500 rounded-xl transition-all text-left group"
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-blue-500/10 rounded-lg group-hover:bg-blue-500/20 transition-colors">
+                      <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-white">{monitor.name}</div>
+                      {monitor.is_primary && (
+                        <span className="text-xs text-blue-400">Primary</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-400">
+                    {monitor.width} × {monitor.height}
+                  </div>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                setShowMonitorSelect(false);
+                setIncomingCall(null);
+              }}
+              className="w-full px-6 py-3 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 font-semibold transition-colors"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
