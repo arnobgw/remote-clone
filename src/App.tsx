@@ -224,10 +224,17 @@ function App() {
 
       // Start capture
       await invoke('start_screen_capture', { monitorId });
+      console.log('[CAPTURE] Started screen capture for monitor', monitorId);
 
       // Listen for frames
       const { listen } = await import('@tauri-apps/api/event');
+      let frameCount = 0;
       const unlisten = await listen('screen-frame', (event: any) => {
+        frameCount++;
+        if (frameCount % 30 === 0) {
+          console.log('[CAPTURE] Received', frameCount, 'frames');
+        }
+
         const base64Data = event.payload;
         const img = new Image();
         img.onload = () => {
@@ -235,8 +242,12 @@ function App() {
           if (canvas.width !== img.width || canvas.height !== img.height) {
             canvas.width = img.width;
             canvas.height = img.height;
+            console.log('[CAPTURE] Canvas resized to', img.width, 'x', img.height);
           }
           ctx.drawImage(img, 0, 0);
+        };
+        img.onerror = (e) => {
+          console.error('[CAPTURE] Failed to load image:', e);
         };
         img.src = `data:image/jpeg;base64,${base64Data}`;
       });

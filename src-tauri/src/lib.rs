@@ -148,6 +148,7 @@ async fn start_screen_capture(app: tauri::AppHandle, monitor_id: u32) -> Result<
         
         // Target 30 FPS
         let frame_duration = Duration::from_millis(33);
+        let mut frame_count = 0;
         
         loop {
             // Check if we should stop
@@ -167,9 +168,10 @@ async fn start_screen_capture(app: tauri::AppHandle, monitor_id: u32) -> Result<
                     // Convert RGBA to RGB (JPEG doesn't support alpha channel)
                     let rgb_image = image::DynamicImage::ImageRgba8(image).to_rgb8();
                     
-                    // Convert to JPEG and base64
+                    // Convert to JPEG with quality setting for better performance
                     let mut buffer = Vec::new();
-                    if let Err(e) = rgb_image.write_to(&mut std::io::Cursor::new(&mut buffer), ImageFormat::Jpeg) {
+                    let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buffer, 75);
+                    if let Err(e) = rgb_image.write_with_encoder(encoder) {
                         eprintln!("Failed to encode image: {}", e);
                         continue;
                     }
@@ -179,6 +181,11 @@ async fn start_screen_capture(app: tauri::AppHandle, monitor_id: u32) -> Result<
                     // Emit event to frontend
                     if let Err(e) = app.emit("screen-frame", base64_data) {
                         eprintln!("Failed to emit frame: {}", e);
+                    } else {
+                        frame_count += 1;
+                        if frame_count % 30 == 0 {
+                            println!("Sent {} frames", frame_count);
+                        }
                     }
                 }
                 Err(e) => {
