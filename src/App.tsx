@@ -15,6 +15,9 @@ function App() {
   const [connectionStatus, setConnectionStatus] = useState<string>("Initializing...");
   const [incomingCall, setIncomingCall] = useState<any>(null);
 
+  // Check if running in Tauri desktop app
+  const isTauriApp = typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__;
+
   const peerRef = useRef<any>(null);
   const callRef = useRef<any>(null);
   const dataConnRef = useRef<any>(null);
@@ -68,6 +71,11 @@ function App() {
       if (data && data.type === 'input-event') {
         console.log('[INPUT] Received input event, invoking simulate_input');
         // Handle remote input event
+        if (!isTauriApp) {
+          console.error('[INPUT] Remote control requires Tauri desktop app. Run with: npm run tauri dev');
+          showToast('⚠️ Remote control requires desktop app. Run: npm run tauri dev');
+          return;
+        }
         try {
           await invoke('simulate_input', { event: data.payload });
           console.log('[INPUT] simulate_input completed');
